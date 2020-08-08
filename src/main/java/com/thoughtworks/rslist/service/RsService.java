@@ -3,23 +3,26 @@ package com.thoughtworks.rslist.service;
 import com.thoughtworks.rslist.domain.Trade;
 import com.thoughtworks.rslist.domain.Vote;
 import com.thoughtworks.rslist.dto.RsEventDto;
+import com.thoughtworks.rslist.dto.TradeDto;
 import com.thoughtworks.rslist.dto.UserDto;
 import com.thoughtworks.rslist.dto.VoteDto;
 import com.thoughtworks.rslist.repository.RsEventRepository;
+import com.thoughtworks.rslist.repository.TradeRepository;
 import com.thoughtworks.rslist.repository.UserRepository;
 import com.thoughtworks.rslist.repository.VoteRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
 @Service
 public class RsService {
+  final TradeRepository tradeRepository;
   final RsEventRepository rsEventRepository;
   final UserRepository userRepository;
   final VoteRepository voteRepository;
 
-  public RsService(RsEventRepository rsEventRepository, UserRepository userRepository, VoteRepository voteRepository) {
+  public RsService(TradeRepository tradeRepository, RsEventRepository rsEventRepository, UserRepository userRepository, VoteRepository voteRepository) {
+    this.tradeRepository = tradeRepository;
     this.rsEventRepository = rsEventRepository;
     this.userRepository = userRepository;
     this.voteRepository = voteRepository;
@@ -50,6 +53,15 @@ public class RsService {
   }
 
   public void buy(Trade trade, int id) {
-
+    TradeDto tradeDto = TradeDto.builder()
+            .amount(trade.getAmount())
+            .rank(trade.getRank())
+            .rsEventId(id)
+            .build();
+    Optional<RsEventDto> rsEventDto = rsEventRepository.findById(id);
+    RsEventDto rsEvent = rsEventDto.get();
+    rsEvent.setRank(trade.getRank());
+    rsEventRepository.save(rsEvent);
+    tradeRepository.save(tradeDto);
   }
 }

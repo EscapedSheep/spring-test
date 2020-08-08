@@ -30,7 +30,8 @@ public class UserDto {
     private int age;
     private String email;
     private String phone;
-    private int voteNum =10;
+    @Builder.Default
+    private int voteNum = 10;
 
     @OneToMany(cascade = CascadeType.REMOVE, mappedBy = "user")
     private List<RsEventDto> rsEventDtos;
