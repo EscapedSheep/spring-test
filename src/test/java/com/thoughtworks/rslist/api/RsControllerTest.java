@@ -220,4 +220,34 @@ class RsControllerTest {
     assertEquals(tradeDtos.get(0).getRank(),trade.getRank());
     assertEquals(tradeDtos.get(0).getRsEventId(), rsEventDto.getId());
   }
+
+  @Test
+  void should_return_bas_request_when_payment_is_not_enough() throws Exception {
+    UserDto save = userRepository.save(userDto);
+    RsEventDto rsEventDto =
+            RsEventDto.builder().keyword("无分类").eventName("第一条事件").user(userDto).build();
+    rsEventDto = rsEventRepository.save(rsEventDto);
+    TradeDto tradeDto = TradeDto.builder()
+            .amount(5)
+            .rank(1)
+            .rsEventId(rsEventDto.getId())
+            .build();
+    tradeDto = tradeRepository.save(tradeDto);
+
+    Trade trade = Trade.builder()
+            .amount(tradeDto.getAmount() - 1)
+            .rank(1)
+            .build();
+
+    ObjectMapper objectMapper = new ObjectMapper();
+    String tradeJson = objectMapper.writeValueAsString(trade);
+
+    mockMvc
+            .perform(
+                    post("/rs/buy/" + rsEventDto.getId())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(tradeJson)
+            )
+            .andExpect(status().isBadRequest());
+  }
 }
