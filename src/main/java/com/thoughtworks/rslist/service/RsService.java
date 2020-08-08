@@ -1,5 +1,6 @@
 package com.thoughtworks.rslist.service;
 
+import com.thoughtworks.rslist.domain.RsEvent;
 import com.thoughtworks.rslist.domain.Trade;
 import com.thoughtworks.rslist.domain.Vote;
 import com.thoughtworks.rslist.dto.RsEventDto;
@@ -11,9 +12,17 @@ import com.thoughtworks.rslist.repository.RsEventRepository;
 import com.thoughtworks.rslist.repository.TradeRepository;
 import com.thoughtworks.rslist.repository.UserRepository;
 import com.thoughtworks.rslist.repository.VoteRepository;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Order;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class RsService {
@@ -28,6 +37,25 @@ public class RsService {
     this.userRepository = userRepository;
     this.voteRepository = voteRepository;
   }
+
+  public List<RsEvent> getRsEventList(int page) {
+    Order rankAsc = Order.asc("rank");
+    Order voteDesc = Order.desc("voteNum");
+    Sort sort = Sort.by(Arrays.asList(rankAsc,voteDesc));
+    Pageable pageable = PageRequest.of(page - 1, 5, sort);
+    return rsEventRepository
+            .findAllByOrderByRankAsc(pageable)
+            .stream()
+            .map(rsEventDto -> RsEvent.builder()
+                    .userId(rsEventDto.getUser().getId())
+                    .eventName(rsEventDto.getEventName())
+                    .keyword(rsEventDto.getKeyword())
+                    .rank(rsEventDto.getRank())
+                    .voteNum(rsEventDto.getVoteNum())
+                    .build()
+            ).collect(Collectors.toList());
+  }
+
 
   public void vote(Vote vote, int rsEventId) {
     Optional<RsEventDto> rsEventDto = rsEventRepository.findById(rsEventId);
@@ -53,21 +81,24 @@ public class RsService {
     rsEventRepository.save(rsEvent);
   }
 
+  @Transactional
   public void buy(Trade trade, int id) {
-    TradeDto tradeDto = TradeDto.builder()
-            .amount(trade.getAmount())
-            .rank(trade.getRank())
-            .rsEventId(id)
-            .build();
-    Optional<TradeDto> checkRankHistoryPrice = tradeRepository.findFirstByRankOrderByAmountDesc(trade.getRank());
-    if (checkRankHistoryPrice.isPresent() && checkRankHistoryPrice.get().getAmount() >= trade.getAmount()) {
-      throw new RequestNotValidException("Payment not enough");
-    }
     Optional<RsEventDto> rsEventDto = rsEventRepository.findById(id);
     if (!rsEventDto.isPresent()) {
       throw new RequestNotValidException("rs event not existed");
     }
     RsEventDto rsEvent = rsEventDto.get();
+    TradeDto tradeDto = TradeDto.builder()
+            .amount(trade.getAmount())
+            .rank(trade.getRank())
+            .rsEvent(rsEvent)
+            .build();
+    Optional<TradeDto> checkRankHistoryPrice = tradeRepository.findFirstByRankOrderByAmountDesc(trade.getRank());
+    if (checkRankHistoryPrice.isPresent() && checkRankHistoryPrice.get().getAmount() >= trade.getAmount()) {
+      throw new RequestNotValidException("Payment not enough");
+    }
+    checkRankHistoryPrice.ifPresent(dto -> rsEventRepository.deleteById(dto.getRsEvent().getId()));
+
     rsEvent.setRank(trade.getRank());
     rsEventRepository.save(rsEvent);
     tradeRepository.save(tradeDto);

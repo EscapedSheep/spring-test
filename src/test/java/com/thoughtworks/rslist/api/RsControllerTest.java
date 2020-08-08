@@ -1,6 +1,5 @@
 package com.thoughtworks.rslist.api;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.thoughtworks.rslist.domain.Trade;
 import com.thoughtworks.rslist.dto.RsEventDto;
@@ -48,6 +47,7 @@ class RsControllerTest {
     voteRepository.deleteAll();
     rsEventRepository.deleteAll();
     userRepository.deleteAll();
+    tradeRepository.deleteAll();
     userDto =
         UserDto.builder()
             .voteNum(10)
@@ -82,14 +82,14 @@ class RsControllerTest {
     UserDto save = userRepository.save(userDto);
 
     RsEventDto rsEventDto =
-        RsEventDto.builder().keyword("无分类").eventName("第一条事件").user(save).build();
+        RsEventDto.builder().keyword("无分类").eventName("第一条事件").user(save).voteNum(9).build();
 
     rsEventRepository.save(rsEventDto);
-    rsEventDto = RsEventDto.builder().keyword("无分类").eventName("第二条事件").user(save).build();
+    rsEventDto = RsEventDto.builder().keyword("无分类").eventName("第二条事件").user(save).voteNum(10).build();
     rsEventRepository.save(rsEventDto);
-    mockMvc.perform(get("/rs/1")).andExpect(jsonPath("$.eventName", is("第一条事件")));
+    mockMvc.perform(get("/rs/1")).andExpect(jsonPath("$.eventName", is("第二条事件")));
     mockMvc.perform(get("/rs/1")).andExpect(jsonPath("$.keyword", is("无分类")));
-    mockMvc.perform(get("/rs/2")).andExpect(jsonPath("$.eventName", is("第二条事件")));
+    mockMvc.perform(get("/rs/2")).andExpect(jsonPath("$.eventName", is("第一条事件")));
     mockMvc.perform(get("/rs/2")).andExpect(jsonPath("$.keyword", is("无分类")));
   }
 
@@ -106,12 +106,12 @@ class RsControllerTest {
     UserDto save = userRepository.save(userDto);
 
     RsEventDto rsEventDto =
-        RsEventDto.builder().keyword("无分类").eventName("第一条事件").user(save).build();
+        RsEventDto.builder().keyword("无分类").eventName("第一条事件").user(save).voteNum(10).build();
 
     rsEventRepository.save(rsEventDto);
-    rsEventDto = RsEventDto.builder().keyword("无分类").eventName("第二条事件").user(save).build();
+    rsEventDto = RsEventDto.builder().keyword("无分类").eventName("第二条事件").voteNum(9).user(save).build();
     rsEventRepository.save(rsEventDto);
-    rsEventDto = RsEventDto.builder().keyword("无分类").eventName("第三条事件").user(save).build();
+    rsEventDto = RsEventDto.builder().keyword("无分类").eventName("第三条事件").voteNum(8).user(save).build();
     rsEventRepository.save(rsEventDto);
     mockMvc
         .perform(get("/rs/list?start=1&end=2"))
@@ -196,7 +196,7 @@ class RsControllerTest {
   void should_add_buy_record() throws Exception {
     UserDto save = userRepository.save(userDto);
     RsEventDto rsEventDto =
-            RsEventDto.builder().keyword("无分类").eventName("第一条事件").user(userDto).build();
+            RsEventDto.builder().keyword("无分类").eventName("第一条事件").user(save).build();
     rsEventDto = rsEventRepository.save(rsEventDto);
 
     Trade trade = Trade.builder()
@@ -218,19 +218,19 @@ class RsControllerTest {
     assertEquals(tradeDtos.size(), 1);
     assertEquals(tradeDtos.get(0).getAmount(), trade.getAmount());
     assertEquals(tradeDtos.get(0).getRank(),trade.getRank());
-    assertEquals(tradeDtos.get(0).getRsEventId(), rsEventDto.getId());
+    assertEquals(tradeDtos.get(0).getRsEvent().getId(), rsEventDto.getId());
   }
 
   @Test
   void should_return_bas_request_when_payment_is_not_enough() throws Exception {
     UserDto save = userRepository.save(userDto);
     RsEventDto rsEventDto =
-            RsEventDto.builder().keyword("无分类").eventName("第一条事件").user(userDto).build();
+            RsEventDto.builder().keyword("无分类").eventName("第一条事件").user(save).build();
     rsEventDto = rsEventRepository.save(rsEventDto);
     TradeDto tradeDto = TradeDto.builder()
             .amount(5)
             .rank(1)
-            .rsEventId(rsEventDto.getId())
+            .rsEvent(rsEventDto)
             .build();
     tradeDto = tradeRepository.save(tradeDto);
 
@@ -249,5 +249,41 @@ class RsControllerTest {
                             .content(tradeJson)
             )
             .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void should_delete_previous_rs_event_when_trade_given_rank_has_been_paid() throws Exception{
+    UserDto save = userRepository.save(userDto);
+    RsEventDto rsEventDto =
+            RsEventDto.builder().keyword("无分类").eventName("第一条事件").user(save).build();
+    rsEventDto = rsEventRepository.save(rsEventDto);
+    TradeDto tradeDto = TradeDto.builder()
+            .amount(1)
+            .rank(1)
+            .rsEvent(rsEventDto)
+            .build();
+    tradeDto = tradeRepository.save(tradeDto);
+    rsEventDto = RsEventDto.builder().keyword("无分类").eventName("第二条事件").user(save).build();
+    rsEventDto = rsEventRepository.save(rsEventDto);
+
+    Trade trade = Trade.builder()
+            .amount(tradeDto.getAmount() + 1)
+            .rank(1)
+            .build();
+
+    ObjectMapper objectMapper = new ObjectMapper();
+    String tradeJson = objectMapper.writeValueAsString(trade);
+
+    mockMvc
+            .perform(
+                    post("/rs/buy/" + rsEventDto.getId())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(tradeJson)
+            )
+            .andExpect(status().isOk());
+
+    List<RsEventDto> rsEventDtos = rsEventRepository.findAll();
+    assertEquals(rsEventDtos.size(), 1);
+    assertEquals(rsEventDtos.get(0).getEventName(), "第二条事件");
   }
 }
