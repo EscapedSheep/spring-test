@@ -57,6 +57,7 @@ public class RsService {
   }
 
 
+  @Transactional
   public void vote(Vote vote, int rsEventId) {
     Optional<RsEventDto> rsEventDto = rsEventRepository.findById(rsEventId);
     Optional<UserDto> userDto = userRepository.findById(vote.getUserId());

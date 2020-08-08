@@ -252,6 +252,29 @@ class RsControllerTest {
   }
 
   @Test
+  void should_return_bad_request_when_rs_event_not_existed() throws Exception{
+    UserDto save = userRepository.save(userDto);
+    RsEventDto rsEventDto =
+            RsEventDto.builder().keyword("无分类").eventName("第一条事件").user(save).build();
+    rsEventDto = rsEventRepository.save(rsEventDto);
+
+    Trade trade = Trade.builder()
+            .amount(1)
+            .rank(1)
+            .build();
+    ObjectMapper objectMapper = new ObjectMapper();
+    String tradeJson = objectMapper.writeValueAsString(trade);
+
+    mockMvc
+            .perform(
+                    post("/rs/buy/" + rsEventDto.getId() + "11")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(tradeJson)
+            )
+            .andExpect(status().isBadRequest());
+  }
+
+  @Test
   void should_delete_previous_rs_event_when_trade_given_rank_has_been_paid() throws Exception{
     UserDto save = userRepository.save(userDto);
     RsEventDto rsEventDto =
